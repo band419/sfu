@@ -1,0 +1,1255 @@
+FLOATING-POINT TRIGONOMETRIC FUNCTIONS FOR FPGAS
+
+J´er´emie Detrey, Florent de Dinechin
+
+LIP, ENS-Lyon
+46, all´ee d’Italie – 69364 Lyon Cedex 07
+{Jeremie.Detrey, Florent.de.Dinechin}@ens-lyon.fr
+
+ABSTRACT
+
+Field-programmable circuits now have a capacity that al-
+lows them to accelerate ﬂoating-point computing, but are
+still missing core libraries for it.
+In particular, there is a
+need for an equivalent to the mathematical library (libm)
+available with every processor and providing implementa-
+tions of standard elementary functions such as exponen-
+tial,
+logarithm or sine. This is all the more important
+as FPGAs are able to outperform current processors for
+such elementary functions, for which no dedicated hard-
+ware exists in the processor. FPLibrary, freely available
+from www.ens-lyon.fr/LIP/Arenaire/, is a ﬁrst
+attempt to address this need for a mathematical library for
+FPGAs. This article demonstrates the implementation, in
+this library, of high-quality operators for ﬂoating-point sine
+and cosine functions up to single-precision. Small size and
+high performance are obtained using a speciﬁc, hardware-
+oriented algorithm, and careful datapath optimisation and
+error analysis. Operators fully compatible with the standard
+software functions are ﬁrst presented, followed by a study
+of several more cost-efﬁcient variants.
+
+1. INTRODUCTION
+
+Floating-point and FPGAs FPGAs are increasingly be-
+ing used as ﬂoating-point accelerators. Many libraries of
+ﬂoating-point operators for FPGAs now exist [1, 2, 3, 4, 5],
+typically offering the basic operators +, −, ×, / and
+.
+Published applications include matrix operations and scien-
+tiﬁc computing [6, 7, 8]. As FPGA ﬂoating-point is typically
+clocked ten times slower than the equivalent in contempo-
+rary processors, only massive parallelism allows these ap-
+plications to be competitive to software equivalent.
+
+√
+
+More complex ﬂoating-point computations on FPGAs
+will require good implementations of elementary functions
+such as logarithm, exponential, trigonometric, etc. These
+are the next useful building blocks after the basic operators.
+After exponential [9] and logarithm [10], this paper studies
+the sine and cosine functions.
+
+Elementary functions Elementary functions are available
+for virtually all computer systems. There is currently a gen-
+eral consensus that they should be implemented in software,
+although this question was long controversial [11]. Even
+processors offering machine instructions for such functions
+(mainly the x86/x87 family) implement them as micro-code.
+Implementing ﬂoating-point elementary functions on
+FPGAs is a new problem. The ﬂexibility of the FPGA
+paradigm allows one to use speciﬁc algorithms which turn
+out to be much more efﬁcient than processor-based imple-
+mentations. Previous work [9, 10] has shown that a single
+precision function consuming a small fraction of FPGA re-
+sources has a latency equivalent to that of the same function
+in a 2.4 GHz PC, while being fully pipelinable to run at 100
+MHz. In other words, where the basic ﬂoating-point oper-
+ator (+, −, ×, /,
+) is typically ten times slower on an
+FPGA than its PC equivalent, an elementary function will
+be more than ten times faster for precisions up to single pre-
+cision.
+
+√
+
+√
+
+However, to beneﬁt from the ﬂexibility of FPGA, one
+should not use the algorithms implemented in libms [12, 13,
+14]: These algorithms assume the availability of hardware
+operators for ﬂoating-point +, −, ×, /,
+, and will not
+be efﬁcient if one has to build these out of FPGA resources.
+Previous similar work, by Ortiz et al. [15] for the sine, and
+by and Doss and Riley [16] for the exponential, use this in-
+efﬁcient approach. In the present paper, the algorithms are
+hardware-oriented from scratch, and thus lead to architec-
+tures which are both much smaller and much faster. In par-
+ticular, this work builds upon previous work dedicated to
+the evaluation in hardware of ﬁxed-point elementary func-
+tion (see [17] and references therein).
+
+Contributions The ﬁrst contribution of this work is the
+availability of high-quality operators for sine and cosine.
+Contrary to [15], our operators are properly speciﬁed to be
+software compatible. A careful error analysis guarantees
+last-bit accuracy, while ensuring that the datapath are never
+more accurate than needed.
+
+Still, these trigonometric operators are about twice more
+resource consuming that the logarithm or exponential func-
+
+1-4244-1060-6/07/$25.00 ©2007 IEEE.
+
+29
+
+tions. The main reason is the ﬂoating-point trigonometric
+argument reduction, which transforms the input argument
+into the interval [0, π/4].
+
+The second, and most novel, contribution of this arti-
+cle is therefore the study of alternative speciﬁcations of the
+functions which reduce the cost of the implementation with-
+out sacriﬁcing accuracy. In the end, we offer a choice be-
+tween functions that will allow for a straightforward trans-
+lation of Matlab or C code, and several alternatives which
+consume less resource, but will require some adaptation in
+the surrounding algorithms. We explain why we believe
+that these adaptations will, more often than not, simplify the
+pipeline around the trigonometric functions.
+
+Notations We use throughout this article the notations of
+the ﬂoating-point hardware library FPLibrary [5]. Floating-
+point numbers are composed of a sign bit Sx, an exponent
+Ex on wE, and a mantissa Fx on wF bits. In single preci-
+sion, wE = 8 and wF = 23. In addition, two bits exnx code
+for exceptional cases such as zeroes, inﬁnities and NaN (Not
+a Number). Figure 1 depicts such a number, whose value is
+x = (−1)Sx × 1.Fx × 2Ex−E0 with E0 = 2wE−1 − 1.
+
+2
+
+1
+
+exnx
+
+Sx
+
+wE
+
+Ex
+
+wF
+
+Fx
+
+Fig. 1. Format of a ﬂoating-point number x.
+
+2. THE SINE AND COSINE FUNCTIONS
+
+Argument reduction for radian angles When angles are
+expressed in radian, the main problem of the evaluation of a
+trigonometric function is to reduce the – possibly very large
+– input number x to a reduced argument α in the interval
+(cid:2)
+(cid:3)
+− π
+. In other words, one needs to compute an integer
+k and a real α such that
+
+4 , π
+
+4
+
+α = x − k
+
+π
+2
+
+∈
+
+(cid:4)
+
+− π
+4
+
+,
+
+π
+4
+
+(cid:5)
+
+.
+
+After this argument reduction, the sine and cosine of the
+original number are deduced from those of y using classical
+identities depicted on Figure 2. In addition, as sin(−α) =
+− sin(α) and cos(−α) = cos(α), only positive α need to be
+considered.
+
+Here, k is deﬁned as x × 2
+
+π rounded to the nearest inte-
+ger. A variant, used by Markstein for software implemen-
+tations on IA64 processors [14], uses as reduced argument
+(cid:7)
+π
+y the fractional part of x × 4
+4 y
+and cos
+. For a hardware implementation this has two
+advantages. First, compared to computing α = x − k π
+2 , it
+saves one subtraction and one multiplication. Second, we
+intend to compute the sine and the cosine of the reduced
+
+π in order to evaluate sin
+
+π
+4 y
+
+(cid:6)
+
+(cid:6)
+
+(cid:7)
+
+2
+
+1
+
+3
+
+α
+0
+
+(
+
+(
+
+(
+
+(
+
+sin(x) = sin(α)
+
+cos(x) = cos(α)
+
+sin(x) = cos(α)
+
+cos(x) = − sin(α)
+
+sin(x) = − sin(α)
+
+cos(x) = − cos(α)
+
+sin(x) = − cos(α)
+
+cos(x) = sin(α)
+
+0
+
+1
+
+2
+
+3
+
+Fig. 2. Argument reduction.
+
+2
+
+2 , 1
+
+(cid:2)
+− 1
+
+(cid:3)
+is better than one in
+(cid:7)
+
+argument using a table-based method [17]. Therefore, the
+reduced argument will be used as address to tables, and for
+(cid:3)
+this an argument in
+,
+because the bounds are powers of two. There is a drawback,
+however: the Taylor series of sin
+is less simple than
+that of sin(α), and this will mean a more complex evalua-
+tion of the sine. All in all, we have performed a detailed
+study showing that the reduction to y has a lower hardware
+cost than the reduction to α.
+
+(cid:2)
+− π
+
+4 , π
+
+π
+4 y
+
+(cid:6)
+
+4
+
+Now the difﬁcult question is to compute x × 4
+π to suf-
+ﬁcient precision. A multiplier by the constant 4
+π shall be
+used, but for very large x, one needs to store this constant
+with very large precision, since we are interested in the frac-
+tional part of the result. Fortunately, the full integer part k
+of the product x × 4
+π need not be computed: We are only
+interested in its last three bits, which hold all the quadrant
+and sign information. Bits of k of higher magnitude corre-
+spond to integer multiple of the period of the functions. As
+x is a ﬂoating-point number, we shall multiply its mantissa
+by 4
+π , and use its exponent to truncate to the left the constant
+4
+π , in order to keep only those bits that will be needed to
+compute the three LSBs of k. This idea is due to Payne and
+Hanek, and its ﬁrst mainstream implementation is Ng’s for
+Sun Microsystems’ fdlibm [18].
+
+At least 2wF bits of 4
+
+π should be multiplied by the man-
+tissa of x, as the wF most signiﬁcant bits of the product,
+being computed out of a left-truncated 4
+π constant, will be
+invalid. But this is not enough: the fractional part y of x × 4
+π
+can come very close to zero for some values of x. In other
+words, the ﬁrst binary digits of y may be a long sequence
+of zeroes. These zeroes should not be part of the (normal)
+ﬂoating-point number to be returned, and will provoke a left
+shift at the normalisation phase. Therefore, we need to add
+yet another gK guard bits to the constant 4
+π . An algorithm by
+Kahan and Douglas [13] allows one to compute, on a given
+ﬂoating-point domain, the smallest possible value of y and
+hence the required gK. Unfortunately, gK is usually close to
+wF .
+
+Finally, a few – namely g – guard bits will also be needed
+to compensate for the other approximation and rounding er-
+rors. To sum up, the trigonometric range reduction requires
+
+30
+
+• the constant 4
+π stored on roughly 2wE −1 + 3wF ,
+• a shifter to extract roughly 3wF bits from this 4
+π ,
+
+• a multiplier of size roughly wF × 3wF bits,
+
+• and another shifter to possibly normalise the result.
+
+The hardware cost will therefore be high. However, the
+delay can be reduced by a dual-path architecture (in the spirit
+of the one used in FP adders), which will be presented in
+section 3.
+
+We have considered other argument reduction algo-
+rithms from the reference book by Muller [13]. Cody and
+Waite’s technique relies on ﬂoating-point operators, and is
+only useful for small arguments. Variations of the modular
+range reduction algorithm [19, 20] have also been consid-
+ered, but these iterative approaches are poorly suited to a
+pipelined implementation.
+
+In the frequent case
+A dual sine/cosine architecture
+when both the sine and the cosine of a value have to be com-
+puted (e.g. to compute a rotation), the expensive argument
+reduction can be shared between both functions. Indeed, as
+presented above, both sine and cosine have to be computed,
+since the ﬁnal result will be one or the other, depending on
+the quadrant. The proposed operator therefore outputs both
+the sine and the cosine of the input. If only one of these
+functions is needed, the constant π
+4 should be replaced with
+π
+2 in the previous. However, sections 4 and 5 will show that
+such a single function operator is almost as costly as the
+dual one. Therefore our reference implementation will be
+the dual one.
+
+This implementation is compatible with the spirit of the
+IEEE-754 standard, and with current best practice in soft-
+ware. It implements an accurate argument reduction to guar-
+antee faithful rounding (or last-bit accuracy) of the result for
+any input.
+
+The general architecture of this implementation is de-
+picted by Figure 3. Figure 4 shows the argument reduction
+architecture, and Figure 5 depicts the evaluation of the sine
+and cosine of the reduced argument. A reconstruction stage
+implements the identities given by Figure 2 to deduce sin x
+(cid:6)
+and cos x from sin
+, the octant, k, and the
+sign of x. Finally, a small unit handles exceptional cases,
+such as sin(+∞) which should return NaN.
+
+, cos
+
+π
+4 y
+
+π
+4 y
+
+(cid:6)
+
+(cid:7)
+
+(cid:7)
+
+Dual-path argument reduction Let us consider the out-
+put of the argument reduction. We wish to compute
+sin
+, both as ﬂoating-point numbers. On
+
+and cos
+
+(cid:6)
+
+(cid:7)
+
+(cid:6)
+
+(cid:7)
+
+π
+4 y
+
+π
+4 y
+
+one side, the cosine will be in
+, therefore its expo-
+nent is known in advance. Hence, computing the mantissa
+
+(cid:5)
+
+(cid:8) √
+2
+2 , 1
+
+2
+
+1
+
+exnx Sx
+
+wE
+
+Ex
+
+wF
+
+Fx
+
+argument reduction
+Ey
+
+k
+
+3
+
+Y
+wF + g
+
+My
+wE
+
+wF + g + 1
+
+sine
+
+cosine
+
+(cid:6)
+
+(cid:7)
+
+π
+4y
+
+sin
+
+wE + wF wE + wF
+
+cos
+
+(cid:6)
+
+(cid:7)
+
+π
+4y
+
+reconstruction
+
+wE + wF + 1
+
+wE + wF + 1
+
+exception handling
+
+wE + wF + 3
+
+wE + wF + 3
+
+sin x
+
+cos x
+
+Fig. 3. Overview of the dual sine/cosine operator.
+
+Fx
+
+1
+
+wF
+
+Ex
+
+wE
+
+E0 − 1
+
+E
+
+4
+
+π
+
+far/close
+
+3 + 2wF + g + gK
+
+3 + wF + g + gK
+yclose
+
+2 + wF + g
+
+far path
+
+kfar
+3
+
+yfar
+
+wF + g + gK
+±1
+
+Eclose
+y
+
+wE
+
+wF + g
+
+Y close
+
+M close
+y
+
+1 + wF + g
+
+LZC
+
+Y far
+
+wF + g
+
+Efar
+y
+wE
+
+1 + wF + g
+
+M far
+y
+
+0
+
+3
+
+k
+
+wF + g
+
+Y
+
+wE
+
+1 + wF + g
+
+Ey
+
+My
+
+Fig. 4. Detailed view of dual-path argument reduction.
+
+can be done by a ﬁxed-point datapath, which only needs a
+ﬁxed-point value of y. We note this ﬁxed-point value Y . On
+the other side, the sine may fall close to zero: To compute
+it, we need a ﬂoating-point representation of y, whose expo-
+nent and mantissa are noted (Ey, My).
+
+This ﬂoating-point representation is obtained in the gen-
+
+31
+
+3. REFERENCE IMPLEMENTATION
+
+close path
+
+eral case by a leading zero counter (LZC) followed by a bar-
+rel shifter. However, there is a special case when the input
+x is close to zero (in practice when x < 1
+2 ). In this case
+the exponent of y may be deduced from that of x, as both
+numbers are in a constant 4
+π ratio. Therefore My and Ey are
+obtained quickly, but obtaining Y requires a variable shift of
+My, depending on the exponent Ey.
+
+There are thus two exclusive datapaths, illustrated on
+Figure 4. The close path, for values of x close to 0, com-
+putes Y out of (Ey, My). The far path, for values of x far
+from zero, computes (Ey, My) out of Y .
+
+(cid:8)
+
+(cid:9)
+
+(cid:8)
+
+(cid:9)
+
+π
+4
+
+π
+4
+
+y
+
+y
+
+and sin
+
+Table-based evaluation of cos
+We have considered the Cordic family of algorithms [13]
+for the evaluation of the sine and cosine themselves. Such
+algorithms have long latency and require small hardware
+when implemented sequentially, however the hardware cost
+becomes very large as soon as a pipelined version is re-
+quired. Therefore, in this work, we shall use the HOTBM
+method [17], which allows for very compact pipelined im-
+plementations of elementary functions in ﬁxed-point. This
+method approximates a function by a minimax polynomial,
+then builds for the evaluation of this polynomial an opti-
+mised parallel architecture out of look-up tables, powering
+units and small multipliers.
+
+this
+As the cosine may be computed in ﬁxed-point,
+method can be used directly. However the ﬁrst bit, being al-
+ways 1, is not computed: the function evaluated by HOTBM
+is
+
+(cid:8)
+
+(cid:9)
+
+fcos(y) = 1 − cos
+
+π
+4
+
+y
+
+.
+
+As the sine may have a variable exponent, it is best com-
+
+puted as
+
+sin
+
+(cid:8)
+
+(cid:9)
+
+π
+4
+
+y
+
+= y ×
+
+(cid:6)
+
+(cid:7)
+
+π
+4 y
+
+sin
+
+y
+
+.
+
+Now the right-hand term of the product has the following
+
+Y
+
+My
+
+Ey
+
+wF + g
+
+1 + wF + g
+
+wE
+
+fsin
+
+HOTBM
+wF + g
+
+π
+4
+
+wF + g + 3
+
+wF + g + 3
+
+Y
+
+wF + g
+
+1
+
+wF + g + 2
+
+fcos
+
+HOTBM
+wF + g
+
+wF + g + 2
+
+normalisation / rounding
+(cid:9)
+
+(cid:8)
+
+wE + wF
+
+sin
+
+π
+4
+
+y
+
+normalization / rounding
+(cid:9)
+
+(cid:8)
+
+wE + wF
+
+cos
+
+π
+4
+
+Fig. 5. Evaluation of sine and cosine
+
+y
+
+32
+
+sin( π
+4 y)
+y
+
+≈ π
+4 + O(y2). This shows that it
+Taylor expansion:
+may be computed in ﬁxed-point, and also that the exponent
+of the result will be that of y. The function evaluated by
+HOTBM for the sine is therefore
+
+fsin(y) = π
+4
+
+−
+
+sin
+
+(cid:7)
+
+π
+4 y
+
+.
+
+(cid:6)
+
+y
+
+Then we have to multiply a ﬂoating-point number (Ey, My)
+by a ﬁxed-point number, which is even simpler than a
+ﬂoating-point multiplication.
+
+Error analysis Our objective is guaranteed faithful round-
+ing (or last-bit accuracy, or a relative error smaller than
+2−wF ). This constraint, along with a careful study of the cu-
+mulated rounding errors (the HOTBM operators themselves
+produce faithful results), allows us to determine the number
+of guard bits required on the datapath. This error analysis
+is not specially interesting, and is omitted here due to space
+constraints. The interested reader will follow the bit widths
+on the previous ﬁgures (it turns out that at most g = 2 guard
+bits are required for faithful rounding). The only subtlety
+is that argument reduction is not exact, therefore the inputs
+to the HOTBM operators also require to be extended with
+g guard bits, and their output is faithful with respect to this
+error-carrying input.
+
+4. DEGRADED IMPLEMENTATIONS
+
+Considering the relatively high area of the reference dual
+sine/cosine operator, we have explored several alternatives
+exposing a trade-off between area, delay and precision.
+These alternatives are presented here, and implementation
+results will be given in section 5.
+
+A ﬁrst remark is that if the user is able to bound the
+range of the input, he can correspondingly reduce wE, the
+exponent size, since the operators are fully parameterised
+and the output doesn’t require a large exponent either. This
+will save some hardware, all the more as the output will be
+prevented to come as close to zero as with a larger exponent.
+However, the cost of the operator depends more on wF , the
+size of the mantissa, than on wE.
+
+Functions of πx The standard trigonometric functions are
+speciﬁed with angles in radian to match the pure mathemat-
+ical functions. However, from an application point of view,
+this may not be the best choice. For instance, many pro-
+grams compute something like sin(ωt) where the constant
+ω is deﬁned as a multiple of π, like ω = 2π
+T . In effect, the
+multiplication by ω performs the conversion of a time into a
+dimensionless number in radian.
+
+For our purpose, it means that a function computing
+sin(πx) will be equally satisfying for the programmer, re-
+quiring only a change in the constant ω in our example.
+
+Of course, the argument reduction becomes trivial, as the
+costly multiplication by the irrational number 4
+π is no longer
+needed. All it takes now is to split x into its integer part
+and fractional part. This operation is not only very cheap, it
+is also error-less, which saves a guard bit in the subsequent
+data-paths, including the inputs to fsin and fcos. The area
+and delay are therefore much reduced.
+
+Our opinion is that this operator will prove the most pop-
+ular, all the more as the upcoming revision of the IEEE-754
+standard for ﬂoating-point arithmetic should introduce these
+functions, for reasons quite similar to those presented here.
+
+A ﬂoating-point in, ﬁxed-point out operator
+If an ap-
+plication can be contented with a ﬁxed-point output, we no
+longer need the gK guards bits of the 4
+π constant, which
+saves one third of the multiplier used for the argument re-
+duction.
+(cid:7)
+
+Besides, this also simpliﬁes the evaluation of sin
+:
+First, there is no need anymore to normalise the result, and
+therefore no need for the ﬂoating-point version of y. Second,
+the HOTBM method can directly evaluate the sine, saving
+the multiplication by My.
+
+π
+4 y
+
+(cid:6)
+
+Therefore, this (still dual) operator, being less accurate,
+
+is much smaller and faster than the reference one.
+
+Single operator Some applications require only one of the
+functions, sine or cosine. We therefore also propose a ver-
+sion that computes only the sine of x. It requires an argu-
+ment reduction to a quadrant instead of octant. Thus the re-
+(cid:3)
+duced argument α will belong to the interval
+, which
+is twice larger than for the dual operator.
+
+(cid:2)
+0, π
+2
+
+Otherwise the argument reduction is very similar to the
+π . In particular,
+
+dual operator, with a constant 2
+the large wF × 3wF multiplier is still necessary.
+
+π instead of 4
+
+Besides, the evaluation of the function fsin(α) on a
+
+larger interval will require a larger HOTBM operator.
+
+All in all, the single operator is therfore only slightly
+
+smaller than the dual one.
+
+5. RESULTS
+
+All the operators presented in this article have been synthe-
+sised, tested, placed and routed for various precisions, using
+Xilinx ISE/XST 7.1, for a Virtex-II XC2V1000-4. Table 1
+gives area results in Virtex-II slices, and latency results after
+place and route in nanoseconds. In [15], Ortiz et al. present
+a 1431-slice single precision sine operator which runs in 18
+105MHz cycles, but which is much less accurate and does
+not seem to perform any kind of range reduction.
+
+As our designs involve many multiplications (including
+those hidden in the HOTBM operators), they may beneﬁt
+from the embedded multipliers present in most current FP-
+GAs. The user may choose, at synthesis time, to use them,
+
+33
+
+or keep them for other parts of the application. Table 1 also
+gives results using such embedded multipliers, for the refer-
+ence implementation and the trig-of-πx alternative.
+
+We are currently working on pipelining these operators,
+which is slightly more difﬁcult than expected as, for in-
+stance, the very large multiplier has to be split into many
+pipeline stages. Current results suggest a pipeline depth of
+18 cycles at 100MHz for single precision on Virtex-II -4,
+providing one sine and one cosine every 10ns. For compar-
+ison, the average time for the default libm sine function on
+a 2.4 GHz Pentium 4 is roughly 200 cycles1, not pipelined:
+This is a result every 80ns. Consistently with previous re-
+sults [9, 10], the FPGA largely outperforms a contemporary
+processor for single-precision elementary functions.
+
+6. CONCLUSION AND PERSPECTIVES
+
+We have described a family of FPGA operators for the com-
+putation of sine and cosine in ﬂoating-point. These opera-
+tors are parameterised by exponent and mantissa size up to
+single precision, are well speciﬁed and are of high numeri-
+cal quality. Several approaches to the precision/performance
+tradeoff are proposed. These operators are part of FPLibrary
+and are freely available from www.ens-lyon.fr/LIP/
+Arenaire/.
+
+In our opinion, the most promising is the version with
+operators for sin(πx) and cos(πx), which offer reduced area
+and improved performance without sacriﬁcing any accuracy.
+Many small improvements can still be brought to these
+operators, for instance using constant multiplication com-
+pression techniques [21]. However, the real challenge is
+to tackle double-precision. The current FPLibrary opera-
+tors for the four operations scale well to double-precision,
+although optimisations are still possible. Elementary func-
+tions based on HOTBM evaluation, however, have an area
+exponential with respect to precision and are poorly suited
+beyond 32 bits [17]. We have designed speciﬁc algorithms
+for exponential and logarithm that scale quadratically with
+precision [22], and one option is to use similar ideas for the
+sine and cosine, which are mathematically very close to the
+(complex) exponential. More precisely, the idea would be to
+use a variant of the Cordic algorithm [13] with a granularity
+targeted to the FPGA LUT structure.
+
+There are also other directions to explore. A second ar-
+gument reduction could make the HOTBM approach more
+competitive. Also, more classical polynomial approxima-
+tion techniques, along with a careful error analysis for the
+intermediate precisions, will provide a large implementation
+space to explore.
+
+1This number can be the subject of endless discussions, as in software
+the time depends a lot on the input value. Here we use the average for
+10000 values with a normal law on the exponent between exponent values
+-20 and 40.
+
+Precision
+(wE, wF )
+
+(5,10)
+(6,13)
+(7,16)
+(7,20)
+(8,23)
+
+Dual sine/cosine
+
+Area Delay
+(slices) (ns)
+69
+86
+91
+99
+109
+
+803
+1159
+1652
+2549
+3320
+
+Area
+(slices + mult.)
+
+424
+537
+816
+1372
+1700
+
+7
+7
+10
+17
+19
+
+Delay
+(ns)
+61
+76
+87
+96
+99
+
+Dual sine/cosine of πx
+
+Area Delay
+(ns)
+(slices)
+58
+363
+61
+641
+73
+865
+84
+1531
+89
+2081
+
+Area
+(slices + mult.)
+
+244
+462
+559
+1005
+1365
+
+3
+3
+4
+8
+10
+
+Delay
+(ns)
+46
+61
+69
+76
+85
+
+Fixed-point out
+Area Delay
+(ns)
+(slices)
+57
+376
+63
+642
+72
+923
+82
+1620
+88
+2203
+
+Sine alone
+Area Delay
+(ns)
+(slices)
+70
+709
+86
+1027
+92
+1428
+101
+2050
+105
+2659
+
+Table 1. Area and latency for various variants of trigonometric operators
+
+However, the complexity of the radian argument reduc-
+tion is here to stay, and the ﬁrst thing, before exploring the
+aforementioned alternatives, is to collect user feedback to
+see which functions should be developed.
+
+7. REFERENCES
+
+[1] N. Shirazi, A. Walters, and P. Athanas, “Quantitative analysis
+of ﬂoating point arithmetic on FPGA based custom comput-
+ing machine,” in FPGAs for Custom Computing Machines.
+IEEE, 1995, pp. 155–162.
+
+[2] J. Dido, N. Geraudie, L. Loiseau, O. Payeur, Y. Savaria, and
+D. Poirier, “A ﬂexible ﬂoating-point format for optimizing
+data-paths and operators in FPGA based DSPs,” in Field-
+Programmable Gate Arrays. ACM, 2002, pp. 50–55.
+
+[3] P. Belanovi´c and M. Leeser, “A library of parameterized
+ﬂoating-point modules and their use,” in Field Programmable
+Logic and Applications, ser. LNCS, vol. 2438.
+Springer,
+2002, pp. 657–666.
+
+[4] B. Lee and N. Burgess, “Parameterisable ﬂoating-point op-
+erators on FPGAs,” in 36th Asilomar Conference on Signals,
+Systems, and Computers, 2002, pp. 1064–1068.
+
+[5] J. Detrey and F. de Dinechin, “A tool for unbiased comparison
+between logarithmic and ﬂoating-point arithmetic,” Journal
+of VLSI Signal Processing, 2007, to appear.
+
+[6] G. Lienhart, A. Kugel, and R. M¨anner, “Using ﬂoating-point
+arithmetic on FPGAs to accelerate scientiﬁc N-body simula-
+IEEE,
+tions,” in FPGAs for Custom Computing Machines.
+2002.
+
+[7] M. deLorimier and A. DeHon, “Floating-point sparse matrix-
+vector multiply for FPGAs,” in Field-Programmable Gate
+Arrays. ACM, 2005, pp. 75–85.
+
+[8] Y. Dou, S. Vassiliadis, G. K. Kuzmanov, and G. N. Gaydad-
+jiev, “64-bit ﬂoating-point FPGA matrix multiplication,” in
+Field-Programmable Gate Arrays. ACM, 2005, pp. 86–95.
+
+[9] J. Detrey and F. de Dinechin, “A parameterized ﬂoating-point
+exponential function for FPGAs,” in Field-Programmable
+Technology.
+
+IEEE, Dec. 2005.
+
+[10] ——, “A parameterizable ﬂoating-point logarithm operator
+for FPGAs,” in 39th Asilomar Conference on Signals, Sys-
+tems & Computers.
+
+IEEE, 2005.
+
+[11] G. Paul and M. W. Wilson, “Should the elementary functions
+be incorporated into computer instruction sets?” ACM Trans-
+actions on Mathematical Software, vol. 2, no. 2, pp. 132–142,
+June 1976.
+
+[12] P. T. P. Tang, “Table lookup algorithms for elementary func-
+tions and their error analysis,” in 10th Symposium on Com-
+puter Arithmetic.
+
+IEEE, June 1991.
+
+[13] J.-M. Muller, Elementary Functions, Algorithms and Imple-
+
+mentation, 2nd ed. Birkh¨auser, 2006.
+
+[14] P. Markstein, IA-64 and Elementary Functions: Speed and
+Pren-
+
+Precision, ser. Hewlett-Packard Professional Books.
+tice Hall, 2000.
+
+[15] F. Ortiz, J. Humphrey, J. Durbano, and D. Prather, “A study
+on the design of ﬂoating-point functions in FPGAs,” in Field
+Programmable Logic and Applications, ser. LNCS, vol. 2778.
+Springer, Sept. 2003, pp. 1131–1135.
+
+[16] C. Doss and R. L. Riley, Jr., “FPGA-based implementation of
+a robust IEEE-754 exponential unit,” in Field-Programmable
+Custom Computing Machines.
+
+IEEE, 2004, pp. 229–238.
+
+[17] J. Detrey and F. de Dinechin, “Table-based polynomials for
+fast hardware function evaluation,” in Application-speciﬁc
+Systems, Architectures and Processors.
+IEEE, 2005, pp.
+328–333.
+
+[18] K. C. Ng, “Argument reduction for huge arguments: good to
+the last bit,” SunPro, Mountain View, CA, USA, Technical
+Report, July 1992.
+
+[19] M. Daumas, C. Mazenc, X. Merrheim, and J. M. Muller,
+“Modular range reduction: A new algorithm for fast and ac-
+curate computation of the elementary functions,” Journal of
+Universal Computer Science, vol. 1, no. 3, pp. 162–175, Mar.
+1995.
+
+[20] J. Villalba, T. Lang, and M. A. Gonzalez, “Double-residue
+modular range reduction for ﬂoating-point hardware imple-
+mentations,” IEEE Transactions on Computers, vol. 55, no. 3,
+pp. 254–267, Mar. 2006.
+
+[21] F. de Dinechin and V. Lef`evre, “Constant multipliers for FP-
+GAs,” in Parallel and Distributed Processing Techniques and
+Applications, 2000, pp. 167–173.
+
+[22] J. Detrey, F. de Dinechin, and X. Pujol, “Return of the hard-
+ware ﬂoating-point elementary function,” in 18th Symposium
+on Computer Arithmetic.
+
+IEEE, June 2007.
+
+34
+
+
