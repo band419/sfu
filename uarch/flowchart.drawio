@@ -1,0 +1,189 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36 Edg/145.0.0.0" version="29.5.1">
+  <diagram name="Page-1" id="4D4AIVA7HEz3ktfqzh6Q">
+    <mxGraphModel dx="1869" dy="791" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1100" pageHeight="1600" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="2" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontSize=18;fontFamily=Times New Roman;" value="&lt;b&gt;浮点三角函数计算（方案 Q）&lt;/b&gt;&lt;br&gt;FP16 单输出、单流水线架构" vertex="1">
+          <mxGeometry height="50" width="460" x="170" y="10" as="geometry" />
+        </mxCell>
+        <mxCell id="3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontFamily=Times New Roman;" value="&lt;b&gt;输入&lt;/b&gt;: x (FP16, 16-bit),  mode (SIN / COS)" vertex="1">
+          <mxGeometry height="40" width="360" x="220" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="4" edge="1" parent="1" source="3" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="10">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="10" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S0&lt;/b&gt;  解包 + 异常分类 + 次正规归一化" vertex="1">
+          <mxGeometry height="180" width="680" x="60" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="11" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Input Unpack&lt;/b&gt;&lt;br&gt;sign_x, exp_x[&lt;font color=&quot;#ff0000&quot;&gt;4:0&lt;/font&gt;], frac_x[&lt;font color=&quot;#ff0000&quot;&gt;9:0&lt;/font&gt;]" vertex="1">
+          <mxGeometry height="45" width="420" x="190" y="165" as="geometry" />
+        </mxCell>
+        <mxCell id="13" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;Subnormal Normalize&lt;/b&gt;&lt;br&gt;LZC + Left Shift&lt;br&gt;mx[&lt;font color=&quot;#ff0000&quot;&gt;10:0&lt;/font&gt;] (1.F),  ex (signed)" vertex="1">
+          <mxGeometry height="55" width="310" x="80" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="12" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;Exception Classify&lt;/b&gt;&lt;br&gt;is_zero, is_inf, is_nan, is_sub" vertex="1">
+          <mxGeometry height="55" width="290" x="420" y="230" as="geometry" />
+        </mxCell>
+        <mxCell id="14" edge="1" parent="1" source="11" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;fontFamily=Times New Roman;" target="13">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="15" edge="1" parent="1" source="11" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;fontFamily=Times New Roman;" target="12">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="16" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;" vertex="1">
+          <mxGeometry height="10" width="680" x="60" y="320" as="geometry" />
+        </mxCell>
+        <mxCell id="20" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S1&lt;/b&gt;  Payne-Hanek: 2/π 窗口读取 + 预对齐" vertex="1">
+          <mxGeometry height="120" width="680" x="60" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="21" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Window Offset&lt;/b&gt;&lt;br&gt;addr = f(ex)" vertex="1">
+          <mxGeometry height="50" width="240" x="80" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="22" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;2/π Constant ROM&lt;/b&gt;&lt;br&gt;Window W = &lt;font color=&quot;#ff0000&quot;&gt;36&lt;/font&gt; bits" vertex="1">
+          <mxGeometry height="50" width="310" x="400" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="23" edge="1" parent="1" source="21" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;fontSize=11;" target="22" value="addr">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="24" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=12;fontStyle=1;" value="C" vertex="1">
+          <mxGeometry height="30" width="40" x="640" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="25" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;" vertex="1">
+          <mxGeometry height="10" width="680" x="60" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="30" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S2&lt;/b&gt;  窗口定点乘法 + q/y 提取" vertex="1">
+          <mxGeometry height="140" width="680" x="60" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="31" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=14;" value="&lt;b&gt;Fixed-Point Multiply&lt;/b&gt;:  P = mx × C" vertex="1">
+          <mxGeometry height="40" width="480" x="160" y="545" as="geometry" />
+        </mxCell>
+        <mxCell id="32" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Extract&lt;/b&gt;:  q = k mod 4 [&lt;font color=&quot;#ff0000&quot;&gt;1:0&lt;/font&gt;],   y ∈ [0,1) [&lt;font color=&quot;#ff0000&quot;&gt;23:0&lt;/font&gt;]" vertex="1">
+          <mxGeometry height="40" width="520" x="140" y="600" as="geometry" />
+        </mxCell>
+        <mxCell id="33" edge="1" parent="1" source="31" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="32">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="34" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;" vertex="1">
+          <mxGeometry height="10" width="680" x="60" y="660" as="geometry" />
+        </mxCell>
+        <mxCell id="40" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S3&lt;/b&gt;  Pre-map: 生成核输入 t" vertex="1">
+          <mxGeometry height="200" width="680" x="60" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="41" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Subtractor&lt;/b&gt;&lt;br&gt;t_inv = 1 − y" vertex="1">
+          <mxGeometry height="45" width="200" x="100" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="42" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;y&lt;/b&gt; (direct)" vertex="1">
+          <mxGeometry height="45" width="200" x="500" y="730" as="geometry" />
+        </mxCell>
+        <mxCell id="43" parent="1" style="shape=trapezoid;perimeter=trapezoidPerimeter;whiteSpace=wrap;html=1;fixedSize=1;direction=south;fontFamily=Times New Roman;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=14;fontStyle=1;" value="&lt;b&gt;MUX&lt;/b&gt;" vertex="1">
+          <mxGeometry height="40" width="180" x="310" y="810" as="geometry" />
+        </mxCell>
+        <mxCell id="44" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=12;" value="&lt;i&gt;sel = mode ⊕ q[0]&lt;/i&gt;" vertex="1">
+          <mxGeometry height="30" width="140" x="500" y="815" as="geometry" />
+        </mxCell>
+        <mxCell id="45" edge="1" parent="1" source="41" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;fontFamily=Times New Roman;" target="43">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="46" edge="1" parent="1" source="42" style="endArrow=classic;html=1;rounded=0;edgeStyle=orthogonalEdgeStyle;fontFamily=Times New Roman;" target="43">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="48" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;t ∈ [0, 1)&lt;/b&gt;" vertex="1">
+          <mxGeometry height="30" width="90" x="355" y="855" as="geometry" />
+        </mxCell>
+        <mxCell id="47" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;" vertex="1">
+          <mxGeometry height="10" width="680" x="60" y="900" as="geometry" />
+        </mxCell>
+        <mxCell id="50" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S4&lt;/b&gt;  HOTBM 函数核 : h(t) 计算" vertex="1">
+          <mxGeometry height="160" width="680" x="60" y="930" as="geometry" />
+        </mxCell>
+        <mxCell id="51" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;HOTBM / Segmented Polynomial&lt;/b&gt;&lt;br&gt;h(t) = sin(πt/2) / t&lt;br&gt;&lt;i&gt;h(t) 在 (0,1] 上光滑有界，适合定点近似&lt;/i&gt;" vertex="1">
+          <mxGeometry height="60" width="560" x="120" y="970" as="geometry" />
+        </mxCell>
+        <mxCell id="52" parent="1" style="text;html=1;align=left;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;" value="&lt;i&gt;t = 0 → s(0) = 0 (快速旁路)&lt;/i&gt;" vertex="1">
+          <mxGeometry height="30" width="200" x="120" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="53" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffe6cc;strokeColor=#d79b00;fontFamily=Times New Roman;" vertex="1">
+          <mxGeometry height="10" width="680" x="60" y="1100" as="geometry" />
+        </mxCell>
+        <mxCell id="60" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f5f5f5;fontColor=#333333;strokeColor=#666666;fontFamily=Times New Roman;fontSize=14;verticalAlign=top;" value="&lt;b&gt;S5&lt;/b&gt;  后处理: 乘法 + 归一化 + 符号重构 + 异常合并" vertex="1">
+          <mxGeometry height="290" width="680" x="60" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="61" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Multiply&lt;/b&gt;:  s(t) = t × h(t)" vertex="1">
+          <mxGeometry height="40" width="400" x="200" y="1165" as="geometry" />
+        </mxCell>
+        <mxCell id="62" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=13;" value="&lt;b&gt;Normalize + Faithful Round&lt;/b&gt; → FP16" vertex="1">
+          <mxGeometry height="40" width="400" x="200" y="1220" as="geometry" />
+        </mxCell>
+        <mxCell id="63" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;Sign Reconstruct&lt;/b&gt;&lt;br&gt;SIN: sign_out = sign_u ⊕ sign_x&lt;br&gt;COS: sign_out = sign_u" vertex="1">
+          <mxGeometry height="50" width="400" x="200" y="1275" as="geometry" />
+        </mxCell>
+        <mxCell id="64" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f8cecc;strokeColor=#b85450;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;Exception / Boundary Merge&lt;/b&gt;&lt;br&gt;NaN|Inf → qNaN  |  Zero → ±0/+1  |  其余 → 主路结果" vertex="1">
+          <mxGeometry height="50" width="400" x="200" y="1340" as="geometry" />
+        </mxCell>
+        <mxCell id="65" edge="1" parent="1" source="61" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="62">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="66" edge="1" parent="1" source="62" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="63">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="67" edge="1" parent="1" source="63" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="64">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="70" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;fontSize=14;fontFamily=Times New Roman;" value="&lt;b&gt;输出&lt;/b&gt;: result (FP16)" vertex="1">
+          <mxGeometry height="40" width="260" x="270" y="1440" as="geometry" />
+        </mxCell>
+        <mxCell id="71" edge="1" parent="1" source="64" style="endArrow=classic;html=1;rounded=0;fontFamily=Times New Roman;" target="70">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="80" edge="1" parent="1" source="12" style="endArrow=classic;html=1;rounded=0;dashed=1;strokeColor=#FF0000;strokeWidth=2;fontFamily=Times New Roman;edgeStyle=orthogonalEdgeStyle;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;labelPosition=right;verticalLabelPosition=middle;align=left;" target="64" value="&lt;font color=&quot;#FF0000&quot;&gt;&lt;i&gt;Exception Bypass&lt;/i&gt;&lt;/font&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="770" y="258" />
+              <mxPoint x="770" y="1365" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="81" edge="1" parent="1" style="endArrow=classic;html=1;rounded=0;strokeColor=#9673a6;strokeWidth=2;dashed=1;fontFamily=Times New Roman;labelPosition=left;verticalLabelPosition=middle;align=right;fontSize=11;" value="&lt;i&gt;mode, sign_x, q 流经各级&lt;/i&gt;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="30" y="310" as="sourcePoint" />
+            <mxPoint x="30" y="1420" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="90" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;fontFamily=Times New Roman;fontSize=11;fillColor=none;strokeColor=#666666;dashed=1;spacingLeft=6;" value="&lt;b&gt;Key Formulas&lt;/b&gt;&lt;br&gt;&lt;hr&gt;p = |x| · (2/π)&lt;br&gt;k = ⌊p⌋,  y = p − k&lt;br&gt;q = k mod 4&lt;br&gt;&lt;hr&gt;t = y  or  (1−y)&lt;br&gt;s(t) = sin(πt/2)&lt;br&gt;     = t · h(t)&lt;br&gt;&lt;hr&gt;sign_u:&lt;br&gt; SIN → q[1]&lt;br&gt; COS → q[1]⊕q[0]" vertex="1">
+          <mxGeometry height="230" width="170" x="800" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="91" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;fontFamily=Times New Roman;fontSize=11;fillColor=none;strokeColor=#666666;dashed=1;spacingLeft=6;" value="&lt;b&gt;Pre-map Table&lt;/b&gt;&lt;br&gt;&lt;hr&gt;SIN q=0,2 → t=y&lt;br&gt;SIN q=1,3 → t=1−y&lt;br&gt;COS q=0,2 → t=1−y&lt;br&gt;COS q=1,3 → t=y&lt;br&gt;&lt;hr&gt;⇒ sel = mode ⊕ q[0]" vertex="1">
+          <mxGeometry height="160" width="170" x="800" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="92" parent="1" style="rounded=1;whiteSpace=wrap;html=1;align=left;fontFamily=Times New Roman;fontSize=11;fillColor=none;strokeColor=#666666;dashed=1;spacingLeft=6;" value="&lt;b&gt;Sign Table (|x|)&lt;/b&gt;&lt;br&gt;&lt;hr&gt;SIN: q=0,1 → +&lt;br&gt;SIN: q=2,3 → −&lt;br&gt;COS: q=0,3 → +&lt;br&gt;COS: q=1,2 → −&lt;br&gt;&lt;hr&gt;Final:&lt;br&gt;SIN → sign_u ⊕ sign_x&lt;br&gt;COS → sign_u" vertex="1">
+          <mxGeometry height="190" width="170" x="800" y="1130" as="geometry" />
+        </mxCell>
+        <mxCell id="93" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;" value="&lt;font color=&quot;#ff0000&quot;&gt;W = 2w&lt;sub&gt;F&lt;/sub&gt;+g+g&lt;sub&gt;K&lt;/sub&gt;+2 = 36&lt;/font&gt;" vertex="1">
+          <mxGeometry height="30" width="210" x="430" y="445" as="geometry" />
+        </mxCell>
+        <mxCell id="94" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=12;" value="&lt;b&gt;s(t) = sin(πt/2)&lt;/b&gt;&lt;br&gt;核心函数  t ∈ [0,1]" vertex="1">
+          <mxGeometry height="40" width="150" x="330" y="1040" as="geometry" />
+        </mxCell>
+        <mxCell id="95" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S0" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="295" as="geometry" />
+        </mxCell>
+        <mxCell id="96" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S1" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="455" as="geometry" />
+        </mxCell>
+        <mxCell id="97" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S2" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="635" as="geometry" />
+        </mxCell>
+        <mxCell id="98" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S3" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="875" as="geometry" />
+        </mxCell>
+        <mxCell id="99" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S4" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="1075" as="geometry" />
+        </mxCell>
+        <mxCell id="100" parent="1" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;fontFamily=Times New Roman;fontSize=11;fontStyle=1;fontColor=#82b366;" value="S5" vertex="1">
+          <mxGeometry height="30" width="30" x="60" y="1405" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
