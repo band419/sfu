@@ -10,11 +10,11 @@ The model is intentionally **decoupled** from any hardware approximation path (Q
 
 The model computes high-precision math first, then rounds to binary16 using **roundTiesToEven**.
 
-### Input Precondition (Reduced Value)
+### Input Contract
 
-- The caller must provide an already **range-reduced** finite input value for the sin/cos path.
-- This golden model intentionally does **not** include extra handling for non-reduced finite inputs.
-- If non-reduced values are provided, behavior is out of this spec's intended usage contract.
+- The golden model accepts **any FP16 bit pattern**. No range reduction is required by the caller.
+- Special values (NaN, Inf, Zero) are handled internally per §2–§4 below.
+- Subnormal inputs are flushed to zero (FTZ): sin(subnormal) = ±0 (preserving sign), cos(subnormal) = +1.0.
 
 ## 2. Bit-level Contract
 

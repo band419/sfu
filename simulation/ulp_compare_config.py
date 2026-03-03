@@ -29,10 +29,12 @@ _interp_models = [
     for suf in _interp_suffixes
 ]
 
+
 MODELS = [
     "golden-mirror",
     "qflow-fixedconst-fp16",
     "qflow-fixedconst-fp32",
+    "qflow-fixedconst-fp64",
     "qflow-fixedconst-fp128",
     "qflow-ph",
     *_interp_models,
@@ -41,7 +43,7 @@ MODELS = [
 
 # Input domain configuration.
 # If EXHAUSTIVE=True, SAMPLES/SEED are ignored and all 65536 fp16 inputs are used.
-EXHAUSTIVE = False
+EXHAUSTIVE = True
 SAMPLES = 200000
 SEED = 20260223
 

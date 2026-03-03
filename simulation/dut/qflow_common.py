@@ -1,17 +1,7 @@
 """Shared Q-flow helpers used by all DUT variants.
 
-Centralizes the dual-kernel selection, sign-reconstruction, and
-special-value handling that are common to every Q-flow DUT model.
-
-The reconstruction follows the Quadrant (Q) scheme documented in
-``SinCos_Derivation.md`` §6 / §10.6:
-
-  The function kernel simultaneously provides
-      s(y) = sin(π/2·y)   and   c(y) = cos(π/2·y)
-  for the same fractional input y ∈ [0, 1).
-
-  A MUX driven by (mode, q) selects **which** kernel output to forward,
-  then sign reconstruction produces the final result.
+Implements the quadrant selection and sign reconstruction logic from
+SinCos_Derivation.md §9, using the spec's exact bit-level formulas.
 """
 
 from __future__ import annotations
@@ -41,44 +31,65 @@ def require_gmpy2() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Quadrant-mapping helpers
+# Mode encoding: SIN=0, COS=1  (spec §1.1)
 # ---------------------------------------------------------------------------
 
-def use_cos_kernel(mode: Mode, q: int) -> bool:
-    """Return True when the reconstruction should pick c(y) = cos(π/2·y).
+def _mode_bit(mode: Mode) -> int:
+    """Return 0 for SIN, 1 for COS."""
+    return 0 if mode == "sin" else 1
 
-    Reconstruction table (SinCos_Derivation §10.6):
 
-        mode  q   kernel
-        SIN   0   s(y)      SIN   1   c(y)
-        SIN   2   s(y)      SIN   3   c(y)
-        COS   0   c(y)      COS   1   s(y)
-        COS   2   c(y)      COS   3   s(y)
+# ---------------------------------------------------------------------------
+# Quadrant-mapping helpers — spec §9.3
+# ---------------------------------------------------------------------------
 
-    Equivalent logic:
-        SIN → use c(y) when q is odd
-        COS → use c(y) when q is even
+def use_cos_signal(mode: Mode, q: int) -> bool:
+    """LUT select signal: use_cos = mode ^ q[0]  (spec §9.3.1).
+
+    Returns True when S3 should read the cos LUT.
     """
-    return ((mode == "sin") and ((q & 0x1) == 1)) or ((mode == "cos") and ((q & 0x1) == 0))
+    return (_mode_bit(mode) ^ (q & 1)) == 1
 
 
-def sign_u_negative(mode: Mode, q: int) -> bool:
-    """Decide whether the unsigned-path result should be negated.
+def sign_u_bit(mode: Mode, q: int) -> int:
+    """Sign of result for u=|x|  (spec §9.3.2).
 
-    SIN: q=2,3 -> negative
-    COS: q=1,2 -> negative
+    SIN: sign_u = q[1]
+    COS: sign_u = q[1] ^ q[0]
+
+    Returns 0 (positive) or 1 (negative).
     """
+    q1 = (q >> 1) & 1
+    q0 = q & 1
     if mode == "sin":
-        return (q & 0x2) != 0
-    return q in (1, 2)
+        return q1
+    return q1 ^ q0
+
+
+def sign_out_bit(mode: Mode, q: int, sign_x: int) -> int:
+    """Final output sign  (spec §9.3.3).
+
+    SIN: sign_out = sign_u ^ sign_x   (sin is odd)
+    COS: sign_out = sign_u             (cos is even)
+
+    Returns 0 (positive) or 1 (negative).
+    """
+    su = sign_u_bit(mode, q)
+    if mode == "sin":
+        return su ^ sign_x
+    return su
 
 
 # ---------------------------------------------------------------------------
-# Special-value short-circuit
+# Special-value short-circuit — spec §5.4
 # ---------------------------------------------------------------------------
 
 def handle_special(mode: Mode, x_bits: int) -> tuple[bool, int]:
-    """Return (True, result_bits) for NaN/Inf/Zero inputs, else (False, 0)."""
+    """Return (True, result_bits) for NaN/Inf/Zero/Subnormal inputs, else (False, 0).
+    
+    Priority (§5.4): NaN > Inf > Zero > Subnormal(FTZ).
+    Subnormals are flushed to zero per spec §5.3.
+    """
     x = decode_fp16_bits(x_bits)
     if x.cls is FP16Class.NAN:
         return True, CANONICAL_QNAN_BITS
@@ -86,6 +97,11 @@ def handle_special(mode: Mode, x_bits: int) -> tuple[bool, int]:
         return True, CANONICAL_QNAN_BITS
     if x.cls is FP16Class.ZERO:
         if mode == "sin":
-            return True, x_bits
-        return True, POS_ONE_BITS
+            return True, x_bits          # sin(±0) = ±0
+        return True, POS_ONE_BITS        # cos(±0) = +1
+    if x.cls is FP16Class.SUBNORMAL:
+        # FTZ: treat subnormal as zero per spec §5.3
+        if mode == "sin":
+            return True, x_bits & 0x8000  # sin(±0) = ±0
+        return True, POS_ONE_BITS            # cos(±0) = +1
     return False, 0

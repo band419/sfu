@@ -107,11 +107,11 @@ def golden_fp16(
     init_precision: int = 128,
     max_precision: int = 8192,
 ) -> int:
-    """Return correctly-rounded binary16 sin/cos result bits for reduced input x_bits.
+    """Return correctly-rounded binary16 sin/cos result bits for any FP16 input x_bits.
 
-    Precondition:
-        - Caller must provide range-reduced input.
-        - This golden model does not perform range reduction or validation for non-reduced inputs.
+    The golden model accepts any FP16 bit pattern. No range reduction
+    is required by the caller; special values (NaN, Inf, Zero) and
+    subnormals (flushed to zero per spec §5.3) are handled internally.
     """
 
     if mode not in ("sin", "cos"):
@@ -131,6 +131,12 @@ def golden_fp16(
         if mode == "sin":
             return x_bits  # preserve signed zero
         return POS_ONE_BITS  # cos(+0) = cos(-0) = +1
+
+    # Subnormal: flush to zero (FTZ) per spec §5.3.
+    if x.cls is FP16Class.SUBNORMAL:
+        if mode == "sin":
+            return x_bits & 0x8000  # sin(±0) = ±0 (preserve sign)
+        return POS_ONE_BITS          # cos(±0) = +1
 
     prev_bits = None
     precision = max(64, int(init_precision))

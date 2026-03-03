@@ -11,7 +11,7 @@ Primary API:
 Arguments:
 
 - `mode`: `"sin"` or `"cos"`
-- `x_bits`: 16-bit integer interpreted as IEEE-754 binary16 bit pattern (**must already be range-reduced by caller**)
+- `x_bits`: 16-bit integer interpreted as IEEE-754 binary16 bit pattern
 
 Return:
 
@@ -19,8 +19,8 @@ Return:
 
 Notes:
 
-- The golden model does not perform finite-input range reduction.
-- Non-reduced finite inputs are outside the intended calling contract.
+- The golden model accepts any FP16 bit pattern, including special values and subnormals (FTZ).
+- No range reduction is required by the caller.
 
 Special policy is frozen in `doc/Golden_Model_Spec.md`.
 
@@ -63,7 +63,7 @@ Reference files:
 ### How to mount a new DUT
 
 1. Add a new adapter class in `simulation/dut/adapters.py` or a sibling module.
-2. Implement `eval(mode, x_bits)` with reduced-input contract.
+2. Implement `eval(mode, x_bits)` following the eval interface.
 3. Register it once via `register_dut(MyDUT())`.
 4. Run compare driver with `--dut <name>`.
 

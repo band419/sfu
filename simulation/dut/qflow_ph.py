@@ -21,16 +21,16 @@ from simulation.common.fp16 import decode_fp16_bits
 from simulation.golden.model import _round_mpfr_to_fp16_bits
 
 from .base import DUTResult, Mode
-from .ph_reduction import PHConfig, reduce_q_y_fp16_ph, y_fixed_to_mpfr
-from .qflow_common import gmpy2, require_gmpy2, handle_special, use_cos_kernel, sign_u_negative
+from .ph_reduction import stage1_unpack, stage2_ph_reduce, y_fixed_to_f32
+from .qflow_common import gmpy2, require_gmpy2, handle_special, sign_out_bit
 
-
-_PH_CFG = PHConfig()
 
 
 # ---------------------------------------------------------------------------
 # Core computation
 # ---------------------------------------------------------------------------
+
+
 
 def qflow_ph_core_bits(mode: Mode, x_bits: int, *, precision: int) -> int:
     """PH reduction → mpfr dual kernel {sin,cos}(π/2·y) → select & reconstruct."""
@@ -39,25 +39,29 @@ def qflow_ph_core_bits(mode: Mode, x_bits: int, *, precision: int) -> int:
         return bits
 
     x = decode_fp16_bits(x_bits)
+    sign_x = x.sign
+
+    # S1 + S2: spec-aligned PH reduction
+    mx, ex = stage1_unpack(x_bits)
+    q, y_fixed, use_cos = stage2_ph_reduce(mx, ex, mode)
+
+    # S3: mpfr kernel at requested precision
     ctx = gmpy2.get_context().copy()
     ctx.precision = precision
     with gmpy2.context(ctx):
         pi = gmpy2.const_pi()
-        red = reduce_q_y_fp16_ph(x_bits, cfg=_PH_CFG)
-        q = red.q
-        y = y_fixed_to_mpfr(red.y_fixed, red.y_frac_bits)
+        # Convert y_fixed to FP32 (models hardware int-to-float conversion),
+        # then promote to mpfr for kernel evaluation.
+        y = gmpy2.mpfr(y_fixed_to_f32(y_fixed))
 
-        sy = gmpy2.sin((pi * y) / 2)   # s(y) = sin(π/2·y)
-        cy = gmpy2.cos((pi * y) / 2)   # c(y) = cos(π/2·y)
+        f_y = gmpy2.cos((pi * y) / 2) if use_cos else gmpy2.sin((pi * y) / 2)
 
-        result = cy if use_cos_kernel(mode, q) else sy
+        # S4: sign reconstruction
+        s_out = sign_out_bit(mode, q, sign_x)
+        if s_out:
+            f_y = -f_y
 
-        if sign_u_negative(mode, q):
-            result = -result
-        if mode == "sin" and x.sign == 1:
-            result = -result
-
-        return _round_mpfr_to_fp16_bits(result)
+        return _round_mpfr_to_fp16_bits(f_y)
 
 
 # ---------------------------------------------------------------------------

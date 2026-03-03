@@ -25,19 +25,20 @@ from simulation.golden.model import (
 )
 
 from .base import DUTResult, Mode
-from .qflow_common import gmpy2, require_gmpy2, handle_special, use_cos_kernel, sign_u_negative
+from .qflow_common import gmpy2, require_gmpy2, handle_special, use_cos_signal, sign_out_bit
 
 
 # ---------------------------------------------------------------------------
 # Constant-format definitions
 # ---------------------------------------------------------------------------
 
-ConstFormat = Literal["fp16", "fp32", "fp128"]
+ConstFormat = Literal["fp16", "fp32", "fp64", "fp128"]
 
 # IEEE-754 significand precision (including implicit leading bit).
 _FORMAT_PRECISION: dict[str, int] = {
     "fp16": 11,    # binary16
     "fp32": 24,    # binary32
+    "fp64": 53,    # binary64
     "fp128": 113,  # binary128
 }
 
@@ -70,7 +71,7 @@ def qflow_fixedconst_core_bits(
         return bits
 
     x = decode_fp16_bits(x_bits)
-
+    sign_x = x.sign
     # --- Reconstruct |x| exactly at high precision first ---
     hi_ctx = gmpy2.get_context().copy()
     hi_ctx.precision = max(64, eval_precision)
@@ -96,17 +97,16 @@ def qflow_fixedconst_core_bits(
     with gmpy2.context(eval_ctx):
         pi = gmpy2.const_pi()
         y_mpfr = gmpy2.mpfr(y)
-        sy = gmpy2.sin((pi * y_mpfr) / 2)   # s(y) = sin(π/2·y)
-        cy = gmpy2.cos((pi * y_mpfr) / 2)   # c(y) = cos(π/2·y)
 
-        result = cy if use_cos_kernel(mode, q) else sy
+        use_cos = use_cos_signal(mode, q)
+        f_y = gmpy2.cos((pi * y_mpfr) / 2) if use_cos else gmpy2.sin((pi * y_mpfr) / 2)
 
-        if sign_u_negative(mode, q):
-            result = -result
-        if mode == "sin" and x.sign == 1:
-            result = -result
+        # S4: sign reconstruction (same API as ph-flow)
+        s_out = sign_out_bit(mode, q, sign_x)
+        if s_out:
+            f_y = -f_y
 
-        return _round_mpfr_to_fp16_bits(result)
+        return _round_mpfr_to_fp16_bits(f_y)
 
 
 # ---------------------------------------------------------------------------
@@ -170,5 +170,5 @@ class QFlowFixedConstDUT:
 # ---------------------------------------------------------------------------
 
 def build_fixedconst_duts() -> list[QFlowFixedConstDUT]:
-    """Create one DUT per supported constant format (fp16, fp32, fp128)."""
-    return [QFlowFixedConstDUT(const_fmt=fmt) for fmt in ("fp16", "fp32", "fp128")]
+    """Create one DUT per supported constant format (fp16, fp32, fp64, fp128)."""
+    return [QFlowFixedConstDUT(const_fmt=fmt) for fmt in ("fp16", "fp32", "fp64", "fp128")]
